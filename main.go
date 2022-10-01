@@ -6,12 +6,12 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"strconv"
 
 	_ "github.com/lib/pq"
 )
 
 type Motor struct {
+	ID    int     `json:"id"`
 	Name  string  `json:"name"`
 	Price float64 `json:"price"`
 }
@@ -64,7 +64,7 @@ func main() {
 
 	http.HandleFunc("/api/v1/motorcycles", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == http.MethodGet {
-			rows, err := db.Query("select name, price from motors")
+			rows, err := db.Query("select id, name, price from motors")
 			if err != nil {
 				sendResponse(http.StatusInternalServerError, "internal server error, get motors", nil, w)
 			}
@@ -74,6 +74,7 @@ func main() {
 				var motor Motor
 
 				err = rows.Scan(
+					&motor.ID,
 					&motor.Name,
 					&motor.Price,
 				)
@@ -118,35 +119,57 @@ func main() {
 				return
 			}
 
-			// cek id tersedia atau tdk
-			idInt, err := strconv.Atoi(id)
+			rows, err := db.Query("select id, name, price from motors where id = $1", id)
 			if err != nil {
-				sendResponse(http.StatusInternalServerError, "internal server error, fail convert string to int", nil, w)
+				sendResponse(http.StatusInternalServerError, "internal server error, get motors", nil, w)
 				return
 			}
 
-			// found := idInt <= len(motors)
-			// if !found {
-			// 	sendResponse(http.StatusNotFound, "data motors not found", nil, w)
-			// 	return
-			// }
+			var motor Motor
 
-			idInt -= 1
+			if rows.Next() {
+				err = rows.Scan(
+					&motor.ID,
+					&motor.Name,
+					&motor.Price,
+				)
+
+				if err != nil {
+					sendResponse(http.StatusInternalServerError, "internal server error, scan data return err", nil, w)
+					return
+				}
+			}
+
+			if motor.ID == 0 {
+				if err != nil {
+					sendResponse(http.StatusNotFound, "data not found", nil, w)
+					return
+				}
+			}
 
 			dataByte, err := io.ReadAll(r.Body)
 			if err != nil {
 				sendResponse(http.StatusBadRequest, "bad request", nil, w)
+				return
 			}
 			defer r.Body.Close()
 
-			var motor Motor
-			err = json.Unmarshal(dataByte, &motor)
+			var newMotor Motor
+			err = json.Unmarshal(dataByte, &newMotor)
 			if err != nil {
-				sendResponse(http.StatusInternalServerError, "internal server error", nil, w)
+				sendResponse(http.StatusInternalServerError, "internal server error", err.Error(), w)
+				return
 			}
 
-			// motors[idInt].Name = motor.Name
-			// motors[idInt].Price = motor.Price
+			motor.Name = newMotor.Name
+			motor.Price = newMotor.Price
+
+			_, err = db.Exec("update motors set name=$2, price=$3 where id=$1", motor.ID, motor.Name, motor.Price)
+			if err != nil {
+				sendResponse(http.StatusInternalServerError, "internal server error, update motors", err.Error(), w)
+				return
+			}
+
 			sendResponse(http.StatusOK, "success updated", nil, w)
 			return
 		}
@@ -160,21 +183,39 @@ func main() {
 				return
 			}
 
-			// cek id tersedia atau tdk
-			idInt, err := strconv.Atoi(id)
+			rows, err := db.Query("select id, name, price from motors where id = $1", id)
 			if err != nil {
-				sendResponse(http.StatusInternalServerError, "internal server error, fail convert string to int", nil, w)
+				sendResponse(http.StatusInternalServerError, "internal server error, get motors", nil, w)
 				return
 			}
 
-			// found := idInt <= len(motors)
-			// if !found {
-			// 	sendResponse(http.StatusNotFound, "data motors not found", nil, w)
-			// 	return
-			// }
+			var motor Motor
 
-			idInt -= 1
-			// motors = remove(motors, idInt)
+			if rows.Next() {
+				err = rows.Scan(
+					&motor.ID,
+					&motor.Name,
+					&motor.Price,
+				)
+
+				if err != nil {
+					sendResponse(http.StatusInternalServerError, "internal server error, scan data return err", nil, w)
+					return
+				}
+			}
+
+			if motor.ID == 0 {
+				if err != nil {
+					sendResponse(http.StatusNotFound, "data not found", nil, w)
+					return
+				}
+			}
+
+			_, err = db.Exec("delete from motors where id = $1", motor.ID)
+			if err != nil {
+				sendResponse(http.StatusInternalServerError, "internal server error, delete motors return err", nil, w)
+				return
+			}
 
 			sendResponse(http.StatusOK, "success deleted", nil, w)
 
