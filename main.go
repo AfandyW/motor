@@ -175,60 +175,51 @@ func main() {
 		return
 	}).Methods(http.MethodPost)
 
-	
+	r.HandleFunc("/api/v1/motorcycles/{id}", func(w http.ResponseWriter, r *http.Request) {
+		// get query param
+		id := r.URL.Query().Get("id")
 
-	http.HandleFunc("/api/v1/motorcycles", func(w http.ResponseWriter, r *http.Request) {
-
-		if r.Method == http.MethodDelete {
-			// get query param
-			id := r.URL.Query().Get("id")
-
-			if id == "" {
-				sendResponse(http.StatusBadRequest, "bad request, data id param is null", nil, w)
-				return
-			}
-
-			rows, err := db.Query("select id, name, price from motors where id = $1", id)
-			if err != nil {
-				sendResponse(http.StatusInternalServerError, "internal server error, get motors", nil, w)
-				return
-			}
-
-			var motor Motor
-
-			if rows.Next() {
-				err = rows.Scan(
-					&motor.ID,
-					&motor.Name,
-					&motor.Price,
-				)
-
-				if err != nil {
-					sendResponse(http.StatusInternalServerError, "internal server error, scan data return err", nil, w)
-					return
-				}
-			}
-
-			if motor.ID == 0 {
-				if err != nil {
-					sendResponse(http.StatusNotFound, "data not found", nil, w)
-					return
-				}
-			}
-
-			_, err = db.Exec("delete from motors where id = $1", motor.ID)
-			if err != nil {
-				sendResponse(http.StatusInternalServerError, "internal server error, delete motors return err", nil, w)
-				return
-			}
-
-			sendResponse(http.StatusOK, "success deleted", nil, w)
-
+		if id == "" {
+			sendResponse(http.StatusBadRequest, "bad request, data id param is null", nil, w)
 			return
 		}
 
-		w.Write([]byte("wrong method"))
-	})
+		rows, err := db.Query("select id, name, price from motors where id = $1", id)
+		if err != nil {
+			sendResponse(http.StatusInternalServerError, "internal server error, get motors", nil, w)
+			return
+		}
+
+		var motor Motor
+
+		if rows.Next() {
+			err = rows.Scan(
+				&motor.ID,
+				&motor.Name,
+				&motor.Price,
+			)
+
+			if err != nil {
+				sendResponse(http.StatusInternalServerError, "internal server error, scan data return err", nil, w)
+				return
+			}
+		}
+
+		if motor.ID == 0 {
+			if err != nil {
+				sendResponse(http.StatusNotFound, "data not found", nil, w)
+				return
+			}
+		}
+
+		_, err = db.Exec("delete from motors where id = $1", motor.ID)
+		if err != nil {
+			sendResponse(http.StatusInternalServerError, "internal server error, delete motors return err", nil, w)
+			return
+		}
+
+		sendResponse(http.StatusOK, "success deleted", nil, w)
+	}).Methods(http.MethodDelete)
 
 	port := "8000"
 	fmt.Println("server run on port ", port)
