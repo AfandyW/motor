@@ -66,6 +66,10 @@ func (svc *Service) Get(id int) (models.Motor, error) {
 		return models.Motor{}, err
 	}
 
+	if motor.ID == 0 {
+		return models.Motor{}, errors.New("data motors not found")
+	}
+
 	return motor, nil
 }
 
