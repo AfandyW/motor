@@ -166,6 +166,6 @@ func main() {
 	}).Methods(http.MethodDelete)
 
 	port := "8000"
-	fmt.Println("server run on port ", port)
+	fmt.Println("server run on port: ", port)
 	http.ListenAndServe(":"+port, r)
 }
