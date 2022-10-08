@@ -6,9 +6,20 @@ import (
 	"github.com/AfandyW/motor/models"
 )
 
+type Repository struct {
+	db *sql.DB
+}
+
+func NewRepository(db *sql.DB) *Repository {
+	// validate
+	return &Repository{
+		db: db,
+	}
+}
+
 // create
-func CreateMotors(db *sql.DB, motor models.Motor) (err error) {
-	_, err = db.Exec("insert into motors(name,price) values($1,$2)", motor.Name, motor.Price)
+func (r *Repository) CreateMotors(motor models.Motor) (err error) {
+	_, err = r.db.Exec("insert into motors(name,price) values($1,$2)", motor.Name, motor.Price)
 	if err != nil {
 		return err
 	}
@@ -17,8 +28,8 @@ func CreateMotors(db *sql.DB, motor models.Motor) (err error) {
 }
 
 // lists motor
-func GetMotors(db *sql.DB) (motors []models.Motor, err error) {
-	rows, err := db.Query("select id, name, price from motors")
+func (r *Repository) GetMotors() (motors []models.Motor, err error) {
+	rows, err := r.db.Query("select id, name, price from motors")
 	if err != nil {
 		return nil, err
 	}
@@ -41,8 +52,8 @@ func GetMotors(db *sql.DB) (motors []models.Motor, err error) {
 }
 
 // get motor
-func GetMotor(db *sql.DB, id string) (motor models.Motor, err error) {
-	rows, err := db.Query("select id, name, price from motors where id = $1", id)
+func (r *Repository) GetMotor(id int) (motor models.Motor, err error) {
+	rows, err := r.db.Query("select id, name, price from motors where id = $1", id)
 	if err != nil {
 		return models.Motor{}, err
 	}
@@ -63,8 +74,8 @@ func GetMotor(db *sql.DB, id string) (motor models.Motor, err error) {
 }
 
 // delete motor
-func Delete(db *sql.DB, id string) (err error) {
-	_, err = db.Exec("delete from motors where id = $1", id)
+func (r *Repository) Delete(id int) (err error) {
+	_, err = r.db.Exec("delete from motors where id = $1", id)
 	if err != nil {
 		return err
 	}
@@ -72,8 +83,8 @@ func Delete(db *sql.DB, id string) (err error) {
 }
 
 // update
-func UpdateMotors(db *sql.DB, motor models.Motor) (err error) {
-	_, err = db.Exec("update motors set name = $2, price = $3 where id = $1", motor.ID ,motor.Name, motor.Price)
+func (r *Repository) UpdateMotors(motor models.Motor) (err error) {
+	_, err = r.db.Exec("update motors set name = $2, price = $3 where id = $1", motor.ID, motor.Name, motor.Price)
 	if err != nil {
 		return err
 	}
