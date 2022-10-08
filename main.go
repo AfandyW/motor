@@ -7,33 +7,23 @@ import (
 	"io"
 	"net/http"
 
+	"github.com/AfandyW/motor/models"
+	"github.com/AfandyW/motor/repository"
 	"github.com/gorilla/mux"
 	_ "github.com/lib/pq"
 )
 
-type Motor struct {
-	ID    int     `json:"id"`
-	Name  string  `json:"name"`
-	Price float64 `json:"price"`
-}
-
-type Response struct {
-	Code    int         `json:"code"`
-	Message string      `json:"message"`
-	Data    interface{} `json:"data"`
-}
-
 // var motors []Motor
 
 func sendResponse(code int, message string, data interface{}, w http.ResponseWriter) {
-	resp := Response{
+	resp := models.Response{
 		Code:    code,
 		Data:    data,
 		Message: message,
 	}
 	dataByte, err := json.Marshal(resp)
 	if err != nil {
-		resp := Response{
+		resp := models.Response{
 			Code:    http.StatusInternalServerError,
 			Data:    nil,
 			Message: "Internal Server Error",
@@ -43,10 +33,6 @@ func sendResponse(code int, message string, data interface{}, w http.ResponseWri
 	w.Header().Set("content-type", "application/json")
 	w.WriteHeader(code)
 	w.Write(dataByte)
-}
-
-func remove(slice []Motor, s int) []Motor {
-	return append(slice[:1], slice[s+1:]...)
 }
 
 var db *sql.DB
@@ -67,30 +53,17 @@ func main() {
 
 	r := mux.NewRouter()
 
+	// get
 	r.HandleFunc("/api/v1/motorcycles", func(w http.ResponseWriter, r *http.Request) {
-		rows, err := db.Query("select id, name, price from motors")
+		motors, err := repository.GetMotors(db)
 		if err != nil {
-			sendResponse(http.StatusInternalServerError, "internal server error, get motors", nil, w)
+			sendResponse(http.StatusBadRequest, "internal server error, get motors", err.Error(), w)
+			return
 		}
-
-		var motors []Motor
-		for rows.Next() {
-			var motor Motor
-
-			err = rows.Scan(
-				&motor.ID,
-				&motor.Name,
-				&motor.Price,
-			)
-			if err != nil {
-				sendResponse(http.StatusInternalServerError, "internal server error, get motors, scan data", nil, w)
-			}
-			motors = append(motors, motor)
-		}
-
 		sendResponse(http.StatusOK, "success", motors, w)
 	}).Methods(http.MethodGet)
 
+	// update
 	r.HandleFunc("/api/v1/motorcycles/{id}", func(w http.ResponseWriter, r *http.Request) {
 		id := mux.Vars(r)["id"]
 
@@ -99,25 +72,10 @@ func main() {
 			return
 		}
 
-		rows, err := db.Query("select id, name, price from motors where id = $1", id)
+		motor, err := repository.GetMotor(db, id)
 		if err != nil {
-			sendResponse(http.StatusInternalServerError, "internal server error, get motors", nil, w)
+			sendResponse(http.StatusInternalServerError, "internal server error, get motor return error", err.Error(), w)
 			return
-		}
-
-		var motor Motor
-
-		if rows.Next() {
-			err = rows.Scan(
-				&motor.ID,
-				&motor.Name,
-				&motor.Price,
-			)
-
-			if err != nil {
-				sendResponse(http.StatusInternalServerError, "internal server error, scan data return err", nil, w)
-				return
-			}
 		}
 
 		if motor.ID == 0 {
@@ -134,7 +92,7 @@ func main() {
 		}
 		defer r.Body.Close()
 
-		var newMotor Motor
+		var newMotor models.Motor
 		err = json.Unmarshal(dataByte, &newMotor)
 		if err != nil {
 			sendResponse(http.StatusInternalServerError, "internal server error", err.Error(), w)
@@ -144,15 +102,16 @@ func main() {
 		motor.Name = newMotor.Name
 		motor.Price = newMotor.Price
 
-		_, err = db.Exec("update motors set name=$2, price=$3 where id=$1", motor.ID, motor.Name, motor.Price)
+		err = repository.UpdateMotors(db, motor)
 		if err != nil {
-			sendResponse(http.StatusInternalServerError, "internal server error, update motors", err.Error(), w)
+			sendResponse(http.StatusInternalServerError, "internal server error", err.Error(), w)
 			return
 		}
 
 		sendResponse(http.StatusOK, "success updated", nil, w)
 	}).Methods(http.MethodPut)
 
+	//create
 	r.HandleFunc("/api/v1/motorcycles", func(w http.ResponseWriter, r *http.Request) {
 		dataByte, err := io.ReadAll(r.Body)
 		if err != nil {
@@ -160,49 +119,34 @@ func main() {
 		}
 		defer r.Body.Close()
 
-		var motor Motor
+		var motor models.Motor
 		err = json.Unmarshal(dataByte, &motor)
 		if err != nil {
 			sendResponse(http.StatusInternalServerError, "internal server error", nil, w)
 		}
 
-		_, err = db.Exec("insert into motors(name,price) values($1,$2)", motor.Name, motor.Price)
+		err = repository.CreateMotors(db, motor)
 		if err != nil {
-			sendResponse(http.StatusInternalServerError, "internal server error, get motors", nil, w)
+			sendResponse(http.StatusInternalServerError, "internal server error", err.Error(), w)
 		}
 
 		sendResponse(http.StatusCreated, "success", nil, w)
 		return
 	}).Methods(http.MethodPost)
 
+	// delete
 	r.HandleFunc("/api/v1/motorcycles/{id}", func(w http.ResponseWriter, r *http.Request) {
-		// get query param
-		id := r.URL.Query().Get("id")
+		id := mux.Vars(r)["id"]
 
 		if id == "" {
 			sendResponse(http.StatusBadRequest, "bad request, data id param is null", nil, w)
 			return
 		}
 
-		rows, err := db.Query("select id, name, price from motors where id = $1", id)
+		motor, err := repository.GetMotor(db, id)
 		if err != nil {
-			sendResponse(http.StatusInternalServerError, "internal server error, get motors", nil, w)
+			sendResponse(http.StatusInternalServerError, "internal server error, get motor return err", err.Error(), w)
 			return
-		}
-
-		var motor Motor
-
-		if rows.Next() {
-			err = rows.Scan(
-				&motor.ID,
-				&motor.Name,
-				&motor.Price,
-			)
-
-			if err != nil {
-				sendResponse(http.StatusInternalServerError, "internal server error, scan data return err", nil, w)
-				return
-			}
 		}
 
 		if motor.ID == 0 {
@@ -212,9 +156,9 @@ func main() {
 			}
 		}
 
-		_, err = db.Exec("delete from motors where id = $1", motor.ID)
+		err = repository.Delete(db, id)
 		if err != nil {
-			sendResponse(http.StatusInternalServerError, "internal server error, delete motors return err", nil, w)
+			sendResponse(http.StatusInternalServerError, "internal server error, delete motor return err", err.Error(), w)
 			return
 		}
 
