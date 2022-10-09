@@ -17,15 +17,21 @@ func sendResponse(code int, message string, data interface{}, w http.ResponseWri
 		Data:    data,
 		Message: message,
 	}
-	dataByte, err := json.Marshal(resp)
-	if err != nil {
-		resp := models.Response{
-			Code:    http.StatusInternalServerError,
-			Data:    nil,
-			Message: "Internal Server Error",
-		}
-		dataByte, _ = json.Marshal(resp)
+	write(resp, code, w)
+}
+
+func sendResponseError(err error, w http.ResponseWriter) {
+	if v, ok := err.(*models.Errors); ok {
+		write(v, v.Code, w)
+		return
 	}
+
+	data := models.NewInternalServerError(err.Error())
+	write(data, http.StatusInternalServerError, w)
+}
+
+func write(data interface{}, code int, w http.ResponseWriter) {
+	dataByte, _ := json.Marshal(data)
 	w.Header().Set("content-type", "application/json")
 	w.WriteHeader(code)
 	w.Write(dataByte)
@@ -44,41 +50,49 @@ func NewController(service *service.Service) *Controller {
 func (ctrl *Controller) Create(w http.ResponseWriter, r *http.Request) {
 	dataByte, err := io.ReadAll(r.Body)
 	if err != nil {
-		sendResponse(http.StatusBadRequest, "bad request", nil, w)
+		sendResponseError(models.NewInternalServerError(err.Error()), w)
+		return
 	}
 	defer r.Body.Close()
 
 	var motor models.Motor
 	err = json.Unmarshal(dataByte, &motor)
 	if err != nil {
-		sendResponse(http.StatusInternalServerError, "internal server error", nil, w)
+		sendResponseError(models.NewInternalServerError(err.Error()), w)
+		return
+	}
+
+	if err = motor.Validate(); err != nil {
+		sendResponseError(err, w)
+		return
 	}
 
 	err = ctrl.service.Create(motor)
 	if err != nil {
-		sendResponse(http.StatusInternalServerError, "internal server error", err.Error(), w)
+		sendResponseError(err, w)
+		return
 	}
 
-	sendResponse(http.StatusCreated, "success", nil, w)
+	sendResponse(http.StatusCreated, "success created data", nil, w)
 }
 
 func (ctrl *Controller) Update(w http.ResponseWriter, r *http.Request) {
 	id := mux.Vars(r)["id"]
 
 	if id == "" {
-		sendResponse(http.StatusBadRequest, "bad request, data id param is null", nil, w)
+		sendResponseError(models.NewBadRequestParameterID(), w)
 		return
 	}
 
 	idInt, err := strconv.Atoi(id)
 	if err != nil {
-		sendResponse(http.StatusBadRequest, "cannot convert id param from string to int", nil, w)
+		sendResponseError(models.NewFailedToConvertData(), w)
 		return
 	}
 
 	dataByte, err := io.ReadAll(r.Body)
 	if err != nil {
-		sendResponse(http.StatusBadRequest, "bad request", nil, w)
+		sendResponseError(models.NewInternalServerError(err.Error()), w)
 		return
 	}
 	defer r.Body.Close()
@@ -86,7 +100,7 @@ func (ctrl *Controller) Update(w http.ResponseWriter, r *http.Request) {
 	var motor models.Motor
 	err = json.Unmarshal(dataByte, &motor)
 	if err != nil {
-		sendResponse(http.StatusInternalServerError, "internal server error", err.Error(), w)
+		sendResponseError(models.NewInternalServerError(err.Error()), w)
 		return
 	}
 
@@ -94,7 +108,7 @@ func (ctrl *Controller) Update(w http.ResponseWriter, r *http.Request) {
 
 	err = ctrl.service.Update(motor)
 	if err != nil {
-		sendResponse(http.StatusInternalServerError, "internal server error", err.Error(), w)
+		sendResponseError(err, w)
 		return
 	}
 
@@ -105,19 +119,19 @@ func (ctrl *Controller) Delete(w http.ResponseWriter, r *http.Request) {
 	id := mux.Vars(r)["id"]
 
 	if id == "" {
-		sendResponse(http.StatusBadRequest, "bad request, data id param is null", nil, w)
+		sendResponseError(models.NewBadRequestParameterID(), w)
 		return
 	}
 
 	idInt, err := strconv.Atoi(id)
 	if err != nil {
-		sendResponse(http.StatusBadRequest, "cannot convert id param from string to int", nil, w)
+		sendResponseError(models.NewFailedToConvertData(), w)
 		return
 	}
 
 	err = ctrl.service.Delete(idInt)
 	if err != nil {
-		sendResponse(http.StatusInternalServerError, "internal server error", err.Error(), w)
+		sendResponseError(err, w)
 		return
 	}
 
@@ -127,7 +141,7 @@ func (ctrl *Controller) Delete(w http.ResponseWriter, r *http.Request) {
 func (ctrl *Controller) List(w http.ResponseWriter, r *http.Request) {
 	motors, err := ctrl.service.List()
 	if err != nil {
-		sendResponse(http.StatusBadRequest, "internal server error, get motors", err.Error(), w)
+		sendResponseError(err, w)
 		return
 	}
 	sendResponse(http.StatusOK, "success", motors, w)
@@ -137,19 +151,19 @@ func (ctrl *Controller) Get(w http.ResponseWriter, r *http.Request) {
 	id := mux.Vars(r)["id"]
 
 	if id == "" {
-		sendResponse(http.StatusBadRequest, "bad request, data id param is null", nil, w)
+		sendResponseError(models.NewBadRequestParameterID(), w)
 		return
 	}
 
 	idInt, err := strconv.Atoi(id)
 	if err != nil {
-		sendResponse(http.StatusBadRequest, "cannot convert id param from string to int", nil, w)
+		sendResponseError(models.NewFailedToConvertData(), w)
 		return
 	}
 
 	motor, err := ctrl.service.Get(idInt)
 	if err != nil {
-		sendResponse(http.StatusBadRequest, "internal server error, get motors", err.Error(), w)
+		sendResponseError(err, w)
 		return
 	}
 	sendResponse(http.StatusOK, "success", motor, w)

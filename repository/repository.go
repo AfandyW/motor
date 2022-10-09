@@ -2,6 +2,7 @@ package repository
 
 import (
 	"database/sql"
+	"errors"
 
 	"github.com/AfandyW/motor/models"
 )
@@ -21,7 +22,7 @@ func NewRepository(db *sql.DB) *Repository {
 func (r *Repository) CreateMotors(motor models.Motor) (err error) {
 	_, err = r.db.Exec("insert into motors(name,price) values($1,$2)", motor.Name, motor.Price)
 	if err != nil {
-		return err
+		return errors.New("create motors return error : " + err.Error())
 	}
 
 	return nil
@@ -31,7 +32,7 @@ func (r *Repository) CreateMotors(motor models.Motor) (err error) {
 func (r *Repository) GetMotors() (motors []models.Motor, err error) {
 	rows, err := r.db.Query("select id, name, price from motors")
 	if err != nil {
-		return nil, err
+		return nil, errors.New("get motors return error : " + err.Error())
 	}
 
 	for rows.Next() {
@@ -43,7 +44,7 @@ func (r *Repository) GetMotors() (motors []models.Motor, err error) {
 			&motor.Price,
 		)
 		if err != nil {
-			return nil, err
+			return nil, errors.New("get motors, scan data return error : " + err.Error())
 		}
 		motors = append(motors, motor)
 	}
@@ -55,7 +56,7 @@ func (r *Repository) GetMotors() (motors []models.Motor, err error) {
 func (r *Repository) GetMotor(id int) (motor models.Motor, err error) {
 	rows, err := r.db.Query("select id, name, price from motors where id = $1", id)
 	if err != nil {
-		return models.Motor{}, err
+		return models.Motor{}, errors.New("get motor return error : " + err.Error())
 	}
 
 	if rows.Next() {
@@ -66,7 +67,7 @@ func (r *Repository) GetMotor(id int) (motor models.Motor, err error) {
 			&motor.Price,
 		)
 		if err != nil {
-			return models.Motor{}, err
+			return models.Motor{}, errors.New("get motor, scan data return error : " + err.Error())
 		}
 	}
 
@@ -77,7 +78,7 @@ func (r *Repository) GetMotor(id int) (motor models.Motor, err error) {
 func (r *Repository) Delete(id int) (err error) {
 	_, err = r.db.Exec("delete from motors where id = $1", id)
 	if err != nil {
-		return err
+		return errors.New("delete motor return error : " + err.Error())
 	}
 	return nil
 }
@@ -86,7 +87,7 @@ func (r *Repository) Delete(id int) (err error) {
 func (r *Repository) UpdateMotors(motor models.Motor) (err error) {
 	_, err = r.db.Exec("update motors set name = $2, price = $3 where id = $1", motor.ID, motor.Name, motor.Price)
 	if err != nil {
-		return err
+		return errors.New("update motor return error : " + err.Error())
 	}
 
 	return nil

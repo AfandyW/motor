@@ -1,8 +1,6 @@
 package service
 
 import (
-	"errors"
-
 	"github.com/AfandyW/motor/models"
 	"github.com/AfandyW/motor/repository"
 )
@@ -19,9 +17,8 @@ func NewService(repo *repository.Repository) *Service {
 
 // create
 func (svc *Service) Create(motor models.Motor) error {
-	err := svc.repository.CreateMotors(motor)
-	if err != nil {
-		return err
+	if err := svc.repository.CreateMotors(motor); err != nil {
+		return models.NewInternalServerError(err.Error())
 	}
 
 	return nil
@@ -31,19 +28,18 @@ func (svc *Service) Create(motor models.Motor) error {
 func (svc *Service) Update(newMotor models.Motor) error {
 	motor, err := svc.repository.GetMotor(newMotor.ID)
 	if err != nil {
-		return err
+		return models.NewInternalServerError(err.Error())
 	}
 
-	if motor.ID == 0 {
-		return errors.New("data motors not found")
+	if err = motor.Exist(); err != nil {
+		return err
 	}
 
 	motor.Name = newMotor.Name
 	motor.Price = newMotor.Price
 
-	err = svc.repository.UpdateMotors(motor)
-	if err != nil {
-		return err
+	if err = svc.repository.UpdateMotors(motor); err != nil {
+		return models.NewInternalServerError(err.Error())
 	}
 
 	return nil
@@ -53,7 +49,7 @@ func (svc *Service) Update(newMotor models.Motor) error {
 func (svc *Service) List() ([]models.Motor, error) {
 	motors, err := svc.repository.GetMotors()
 	if err != nil {
-		return nil, err
+		return nil, models.NewInternalServerError(err.Error())
 	}
 
 	return motors, nil
@@ -63,11 +59,11 @@ func (svc *Service) List() ([]models.Motor, error) {
 func (svc *Service) Get(id int) (models.Motor, error) {
 	motor, err := svc.repository.GetMotor(id)
 	if err != nil {
-		return models.Motor{}, err
+		return models.Motor{}, models.NewInternalServerError(err.Error())
 	}
 
-	if motor.ID == 0 {
-		return models.Motor{}, errors.New("data motors not found")
+	if err = motor.Exist(); err != nil {
+		return models.Motor{}, err
 	}
 
 	return motor, nil
@@ -77,16 +73,15 @@ func (svc *Service) Get(id int) (models.Motor, error) {
 func (svc *Service) Delete(id int) error {
 	motor, err := svc.repository.GetMotor(id)
 	if err != nil {
+		return models.NewInternalServerError(err.Error())
+	}
+
+	if err = motor.Exist(); err != nil {
 		return err
 	}
 
-	if motor.ID == 0 {
-		return errors.New("data motors not found")
-	}
-
-	err = svc.repository.Delete(motor.ID)
-	if err != nil {
-		return err
+	if err = svc.repository.Delete(motor.ID); err != nil {
+		return models.NewInternalServerError(err.Error())
 	}
 
 	return nil
