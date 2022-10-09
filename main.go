@@ -15,6 +15,8 @@ func main() {
 	con := config.NewConfig()
 	db := config.NewDatabase(&con.DB)
 
+	defer db.Close()
+
 	repo := repository.NewRepository(db)
 	service := service.NewService(repo)
 	controller := controllers.NewController(service)
